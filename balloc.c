@@ -910,7 +910,7 @@ static int nova_get_candidate_free_list(struct super_block *sb)
 
 	for (i = 0; i < sbi->cpus; i++) {
 		free_list = nova_get_free_list(sb, i);
-		if (free_list->num_free_blocks > num_free_blocks) {
+		if (free_list->num_free_blocks > 0) {
 			cpuid = i;
 			num_free_blocks = free_list->num_free_blocks;
 		}

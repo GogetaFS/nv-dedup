@@ -617,7 +617,7 @@ struct write_env {
 	unsigned long pos;
 	unsigned long num_pages;
 	unsigned long blocknr;
-	unsigned long file_size;
+	unsigned long start_blocknr;
 };
 
 /*
@@ -791,18 +791,18 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 		else
 			file_size = cpu_to_le64(inode->i_size);
 
-		env.file_size = file_size;
 		if (env.pos == 0) {
 			env.pos = pos;
-			env.num_pages = allocated;
+			env.num_pages = 1;
 			env.blocknr = blocknr;
-		} else if (blocknr == env.pos + 1) {
-			env.num_pages += allocated;
+			env.start_blocknr = blocknr;
+		} else if (blocknr == env.blocknr + 1) {
+			env.blocknr += 1;
+			env.num_pages += 1;
 		} else {
 			start_blk = env.pos >> sb->s_blocksize_bits;
-			blocknr = env.blocknr;
 			nova_init_file_write_entry(sb, sih, &entry_data, epoch_id,
-						start_blk, env.num_pages, blocknr, time,
+						start_blk, env.num_pages, env.start_blocknr, time,
 						file_size);
 
 			ret = nova_append_file_write_entry(sb, pi, inode,
@@ -817,8 +817,9 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 				begin_tail = update.curr_entry;
 
 			env.pos = pos;
-			env.num_pages = allocated;
+			env.num_pages = 1;
 			env.blocknr = blocknr;
+			env.start_blocknr = blocknr;
 		}
 
 		nova_dbgv("Write: %p, %lu\n", data_buffer, copied);
@@ -842,9 +843,8 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 
 	if (env.pos) {
 		start_blk = env.pos >> sb->s_blocksize_bits;
-		blocknr = env.blocknr;
 		nova_init_file_write_entry(sb, sih, &entry_data, epoch_id,
-					start_blk, env.num_pages, blocknr, time,
+					start_blk, env.num_pages, env.start_blocknr, time,
 					file_size);
 
 		ret = nova_append_file_write_entry(sb, pi, inode,
@@ -854,7 +854,7 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 			ret = -ENOSPC;
 			goto out;
 		}
-		
+
 		if (begin_tail == 0)
 			begin_tail = update.curr_entry;
 	}
@@ -867,9 +867,9 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 	nova_memlock_inode(sb, pi);
 
 	/* Free the overlap blocks after the write is committed */
-	ret = nova_reassign_file_tree(sb, sih, begin_tail);
-	if (ret)
-		goto out;
+	// ret = nova_reassign_file_tree(sb, sih, begin_tail);
+	// if (ret)
+	// 	goto out;
 
 	inode->i_blocks = sih->i_blocks;
 

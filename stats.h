@@ -216,15 +216,17 @@ typedef struct timespec timing_t;
 #define	INIT_TIMING(X)	timing_t X = {0}
 
 #define NOVA_START_TIMING(name, start) \
-	{if (measure_timing) getrawmonotonic(&start); }
+	{if (measure_timing) { MEMORY_BARRIER(); getrawmonotonic(&start); MEMORY_BARRIER();} }
 
 #define NOVA_END_TIMING(name, start) \
 	{if (measure_timing) { \
 		INIT_TIMING(end); \
+		MEMORY_BARRIER(); \
 		getrawmonotonic(&end); \
 		__this_cpu_add(Timingstats_percpu[name], \
 			(end.tv_sec - start.tv_sec) * 1000000000 + \
 			(end.tv_nsec - start.tv_nsec)); \
+		MEMORY_BARRIER(); \
 	} \
 	__this_cpu_add(Countstats_percpu[name], 1); \
 	}
