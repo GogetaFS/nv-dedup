@@ -613,6 +613,13 @@ static ssize_t nova_dax_file_read(struct file *filp, char __user *buf,
 	return res;
 }
 
+struct write_env {
+	unsigned long pos;
+	unsigned long num_pages;
+	unsigned long blocknr;
+	unsigned long file_size;
+};
+
 /*
  * Perform a COW write.   Must hold the inode lock before calling.
  */
@@ -647,6 +654,7 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 	u64 epoch_id;
 	u32 time;
 	char* data_buffer;
+	struct write_env env;
 
 	data_buffer = (char *)kmalloc(PAGE_SIZE, GFP_KERNEL);
 
@@ -683,6 +691,10 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 	total_blocks = num_blocks;
 	start_blk = pos >> sb->s_blocksize_bits;
 
+	env.pos = 0;
+	env.num_pages = 0;
+	env.blocknr = 0;
+    
 	if (nova_check_overlap_vmas(sb, sih, start_blk, num_blocks)) {
 		nova_dbgv("COW write overlaps with vma: inode %lu, pgoff %lu, %lu blocks\n",
 				inode->i_ino, start_blk, num_blocks);
@@ -759,7 +771,7 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 			goto out;
 		}
 
-		
+
 		// NOVA_START_TIMING(memcpy_w_nvmm_t, memcpy_time);
 		// nova_memunlock_range(sb, kmem + offset, bytes);
 		// copied = bytes - memcpy_to_pmem_nocache(kmem + offset,
@@ -779,16 +791,34 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 		else
 			file_size = cpu_to_le64(inode->i_size);
 
-		nova_init_file_write_entry(sb, sih, &entry_data, epoch_id,
-					start_blk, 1, blocknr, time,
-					file_size);
+		env.file_size = file_size;
+		if (env.pos == 0) {
+			env.pos = pos;
+			env.num_pages = allocated;
+			env.blocknr = blocknr;
+		} else if (blocknr == env.pos + 1) {
+			env.num_pages += allocated;
+		} else {
+			start_blk = env.pos >> sb->s_blocksize_bits;
+			blocknr = env.blocknr;
+			nova_init_file_write_entry(sb, sih, &entry_data, epoch_id,
+						start_blk, env.num_pages, blocknr, time,
+						file_size);
 
-		ret = nova_append_file_write_entry(sb, pi, inode,
-					&entry_data, &update);
-		if (ret) {
-			nova_dbg("%s: append inode entry failed\n", __func__);
-			ret = -ENOSPC;
-			goto out;
+			ret = nova_append_file_write_entry(sb, pi, inode,
+						&entry_data, &update);
+			if (ret) {
+				nova_dbg("%s: append inode entry failed\n", __func__);
+				ret = -ENOSPC;
+				goto out;
+			}
+
+			if (begin_tail == 0)
+				begin_tail = update.curr_entry;
+
+			env.pos = pos;
+			env.num_pages = allocated;
+			env.blocknr = blocknr;
 		}
 
 		nova_dbgv("Write: %p, %lu\n", data_buffer, copied);
@@ -808,7 +838,23 @@ static ssize_t do_nova_cow_file_write(struct file *filp,
 		}
 		if (status < 0)
 			break;
+	}
 
+	if (env.pos) {
+		start_blk = env.pos >> sb->s_blocksize_bits;
+		blocknr = env.blocknr;
+		nova_init_file_write_entry(sb, sih, &entry_data, epoch_id,
+					start_blk, env.num_pages, blocknr, time,
+					file_size);
+
+		ret = nova_append_file_write_entry(sb, pi, inode,
+					&entry_data, &update);
+		if (ret) {
+			nova_dbg("%s: append inode entry failed\n", __func__);
+			ret = -ENOSPC;
+			goto out;
+		}
+		
 		if (begin_tail == 0)
 			begin_tail = update.curr_entry;
 	}
