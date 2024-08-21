@@ -359,6 +359,7 @@ int nova_dedup_weak_str_fin(struct super_block *sb, const char* data_buffer, uns
             goto out;
         
         pentry = pentries + alloc_entry;
+        memset_nt(pentry, 0, sizeof(*pentry));
         pentry->flag = FP_WEAK_FLAG;
         pentry->fp_weak = fp_weak;
         pentry->blocknr = *blocknr;
@@ -389,6 +390,7 @@ int nova_dedup_non_fin(struct super_block *sb, const char* data_buffer, unsigned
         goto out;
     pentries = nova_get_block(sb, nova_get_block_off(sb, sbi->metadata_start,NOVA_BLOCK_TYPE_4K));
     pentry = pentries + alloc_entry;
+    memset_nt(pentry, 0, sizeof(*pentry));
     pentry->blocknr = *blocknr;
     pentry->flag = NON_FIN_FLAG;
     pentry->refcount = 1;
