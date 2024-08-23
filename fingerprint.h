@@ -5,6 +5,7 @@
 #include <crypto/hash.h>
 #include <crypto/skcipher.h>
 #include "stats.h"
+#include "wyhash.h"
 
 #define NOVA_FP_STRONG_CTX_BUF_SIZE 256
 
@@ -58,16 +59,21 @@ static inline void nova_fp_hash_ctx_free(struct nova_fp_hash_ctx *ctx) {
 
 static inline int nova_fp_strong_calc(struct nova_fp_hash_ctx *fp_ctx, const void *addr, struct nova_fp_strong *fp)
 {
-	struct shash_desc *shash_desc;
 	int ret;
+	// struct shash_desc *shash_desc;
 
-	shash_desc = kmalloc(sizeof(struct shash_desc) +
-		crypto_shash_descsize(fp_ctx->alg), GFP_ATOMIC);
-	if (shash_desc == NULL)
-		return -ENOMEM;
-	shash_desc->tfm = fp_ctx->alg;
-	ret = crypto_shash_digest(shash_desc, (const void*)addr, 4096, (void*)fp->u64s);
-	kfree(shash_desc);
+	// shash_desc = kmalloc(sizeof(struct shash_desc) +
+	// 	crypto_shash_descsize(fp_ctx->alg), GFP_ATOMIC);
+	// if (shash_desc == NULL)
+	// 	return -ENOMEM;
+	// shash_desc->tfm = fp_ctx->alg;
+	// ret = crypto_shash_digest(shash_desc, (const void*)addr, 4096, (void*)fp->u64s);
+	// kfree(shash_desc);
+
+	fp->u64s[0] = wyhash(addr, 4096, 0, _wyp);
+	fp->u64s[1] = 0;
+	fp->u64s[2] = 0;
+	fp->u64s[3] = 0;
 
 	return ret;
 }
