@@ -172,6 +172,7 @@ enum timing_category {
 	non_fin_calc_t,
 	ws_fin_calc_t,
 	str_fin_calc_t,
+	upsert_entry_t,
 
 	/* Sentinel */
 	TIMING_NUM,

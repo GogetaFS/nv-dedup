@@ -116,6 +116,7 @@ int nova_dedup_str_fin(struct super_block *sb, const char* data_buffer,unsigned 
     INIT_TIMING(weak_fp_calc_time);
     INIT_TIMING(strong_fp_calc_time);
     INIT_TIMING(hash_table_time);
+    INIT_TIMING(upsert_entry_time);
 
     pentries = nova_get_block(sb, nova_get_block_off(sb, sbi->metadata_start, NOVA_BLOCK_TYPE_4K));
 
@@ -140,6 +141,7 @@ int nova_dedup_str_fin(struct super_block *sb, const char* data_buffer,unsigned 
     NOVA_END_TIMING(hash_table_t, hash_table_time);
 
     if( strong_find_hentry ) {
+        NOVA_START_TIMING(upsert_entry_t, upsert_entry_time);
         pentry = pentries + strong_find_hentry->entrynr;
         ++pentry->refcount;
         pentry->fp_weak = fp_weak;
@@ -148,6 +150,7 @@ int nova_dedup_str_fin(struct super_block *sb, const char* data_buffer,unsigned 
         *blocknr = pentry->blocknr;
         allocated = 1;
         strong_find_entry = strong_find_hentry->entrynr;
+        NOVA_END_TIMING(upsert_entry_t, upsert_entry_time);
     }else {
         /* handle the situation */
         if (weak_find_hentry) {
@@ -155,12 +158,14 @@ int nova_dedup_str_fin(struct super_block *sb, const char* data_buffer,unsigned 
             kmem = nova_get_block(sb, nova_get_block_off(sb, pentry->blocknr, NOVA_BLOCK_TYPE_4K));
             nova_fp_strong_calc(&sbi->nova_fp_strong_ctx, kmem, &entry_fp_strong);
             if (cmp_fp_strong(&entry_fp_strong, &fp_strong)) {
+                NOVA_START_TIMING(upsert_entry_t, upsert_entry_time);
                 pentry->fp_strong = entry_fp_strong;
                 ++pentry->refcount;
                 pentry->flag = FP_STRONG_FLAG;
                 ++sbi->dup_block;
                 *blocknr = pentry->blocknr;
                 allocated = 1;
+                NOVA_END_TIMING(upsert_entry_t, upsert_entry_time);
                 strong_hentry = nova_alloc_hentry(sb);
                 strong_hentry->entrynr = weak_find_hentry->entrynr;
                 hlist_add_head(&strong_hentry->node, &sbi->strong_hash_table[strong_idx]);
@@ -171,13 +176,16 @@ int nova_dedup_str_fin(struct super_block *sb, const char* data_buffer,unsigned 
                 allocated = nova_alloc_block_write(sb,data_buffer,blocknr);
                 if(allocated < 0) 
                     goto out;
-
+                
+                NOVA_START_TIMING(upsert_entry_t, upsert_entry_time);
                 pentry = pentries + alloc_entry;
                 pentry->flag = FP_STRONG_FLAG;
                 pentry->blocknr = *blocknr;
                 pentry->fp_strong = fp_strong;
                 pentry->fp_weak = fp_weak;
                 pentry->refcount = 1;
+                NOVA_END_TIMING(upsert_entry_t, upsert_entry_time);
+
                 strong_hentry = nova_alloc_hentry(sb);
                 strong_hentry->entrynr = alloc_entry;
                 hlist_add_head(&strong_hentry->node, &sbi->strong_hash_table[strong_idx]);
@@ -190,13 +198,16 @@ int nova_dedup_str_fin(struct super_block *sb, const char* data_buffer,unsigned 
             allocated = nova_alloc_block_write(sb,data_buffer,blocknr);
             if(allocated < 0) 
                 goto out;
-
+            
+            NOVA_START_TIMING(upsert_entry_t, upsert_entry_time);
             pentry = pentries + alloc_entry;
             pentry->flag = FP_STRONG_FLAG;
             pentry->blocknr = *blocknr;
             pentry->fp_strong = fp_strong;
             pentry->fp_weak = fp_weak;
             pentry->refcount = 1;
+            NOVA_END_TIMING(upsert_entry_t, upsert_entry_time);
+
             strong_hentry = nova_alloc_hentry(sb);
             strong_hentry->entrynr = alloc_entry;
             hlist_add_head(&strong_hentry->node, &sbi->strong_hash_table[strong_idx]);
@@ -205,7 +216,9 @@ int nova_dedup_str_fin(struct super_block *sb, const char* data_buffer,unsigned 
         }
     }
 
+    NOVA_START_TIMING(upsert_entry_t, upsert_entry_time);
     nova_flush_buffer(pentry, sizeof(*pentry), true);
+    NOVA_END_TIMING(upsert_entry_t, upsert_entry_time);
 
     if(!weak_find_hentry) {
         weak_hentry = nova_alloc_hentry(sb);
@@ -241,6 +254,7 @@ int nova_dedup_weak_str_fin(struct super_block *sb, const char* data_buffer, uns
     INIT_TIMING(weak_fp_calc_time);
     INIT_TIMING(strong_fp_calc_time);
     INIT_TIMING(hash_table_time);
+    INIT_TIMING(upsert_entry_time);
 
     pentries = nova_get_block(sb, nova_get_block_off(sb, sbi->metadata_start, NOVA_BLOCK_TYPE_4K));
 
@@ -278,9 +292,11 @@ int nova_dedup_weak_str_fin(struct super_block *sb, const char* data_buffer, uns
             nova_fp_strong_calc(&sbi->nova_fp_strong_ctx, kmem, &entry_fp_strong);
             NOVA_END_TIMING(strong_fp_calc_t, strong_fp_calc_time);
             
+            NOVA_START_TIMING(upsert_entry_t, upsert_entry_time);
             weak_entry->flag = FP_STRONG_FLAG;
             weak_entry->fp_strong = entry_fp_strong;
             flush_entry = true;
+            NOVA_END_TIMING(upsert_entry_t, upsert_entry_time);
             
             strong_hentry = nova_alloc_hentry(sb);
             strong_hentry->entrynr = weak_find_hentry->entrynr;
@@ -296,9 +312,11 @@ int nova_dedup_weak_str_fin(struct super_block *sb, const char* data_buffer, uns
 
         if(cmp_fp_strong(&fp_strong, &entry_fp_strong)) {
             *blocknr = weak_entry->blocknr;
+            NOVA_START_TIMING(upsert_entry_t, upsert_entry_time);
             ++weak_entry->refcount;
             flush_entry = true;
             ++sbi->dup_block;
+            NOVA_END_TIMING(upsert_entry_t, upsert_entry_time);
             allocated = 1;
         } 
         else {
@@ -311,9 +329,11 @@ int nova_dedup_weak_str_fin(struct super_block *sb, const char* data_buffer, uns
             if(strong_find_hentry) {
                 // if the corresponding strong fingerprint is found
                 // add the refcount and return
+                NOVA_START_TIMING(upsert_entry_t, upsert_entry_time);
                 strong_entry = pentries + strong_find_hentry->entrynr;
                 ++strong_entry->refcount;
                 nova_flush_buffer(strong_entry,sizeof(*strong_entry),true);
+                NOVA_END_TIMING(upsert_entry_t, upsert_entry_time);
                 *blocknr = strong_entry->blocknr;
                 allocated = 1;
                 ++sbi->dup_block;
@@ -328,6 +348,7 @@ int nova_dedup_weak_str_fin(struct super_block *sb, const char* data_buffer, uns
                     goto out;
                 }
                 
+                NOVA_START_TIMING(upsert_entry_t, upsert_entry_time);
                 pentry = pentries + alloc_entry;
                 pentry->flag = FP_STRONG_FLAG;
                 pentry->fp_weak = fp_weak;
@@ -335,6 +356,7 @@ int nova_dedup_weak_str_fin(struct super_block *sb, const char* data_buffer, uns
                 pentry->blocknr = *blocknr;
                 pentry->refcount = 1;
                 nova_flush_buffer(pentry, sizeof(*pentry), true);
+                NOVA_END_TIMING(upsert_entry_t, upsert_entry_time);
                 strong_hentry = nova_alloc_hentry(sb);
                 strong_hentry->entrynr = alloc_entry;
                 hlist_add_head(&strong_hentry->node, &sbi->strong_hash_table[strong_idx]);
@@ -343,7 +365,9 @@ int nova_dedup_weak_str_fin(struct super_block *sb, const char* data_buffer, uns
 	        spin_unlock(sbi->strong_hash_table_locks + strong_idx % HASH_TABLE_LOCK_NUM);
         }
 
+        NOVA_START_TIMING(upsert_entry_t, upsert_entry_time);
         if(flush_entry) nova_flush_buffer(weak_entry, sizeof(*weak_entry), true);
+        NOVA_END_TIMING(upsert_entry_t, upsert_entry_time);
     }
     else {
         /**
@@ -358,6 +382,7 @@ int nova_dedup_weak_str_fin(struct super_block *sb, const char* data_buffer, uns
         if(allocated < 0 )
             goto out;
         
+        NOVA_START_TIMING(upsert_entry_t, upsert_entry_time);
         pentry = pentries + alloc_entry;
         memset_nt(pentry, 0, sizeof(*pentry));
         pentry->flag = FP_WEAK_FLAG;
@@ -365,6 +390,7 @@ int nova_dedup_weak_str_fin(struct super_block *sb, const char* data_buffer, uns
         pentry->blocknr = *blocknr;
         pentry->refcount = 1;
         nova_flush_buffer(pentry, sizeof(*pentry),true);
+        NOVA_END_TIMING(upsert_entry_t, upsert_entry_time);
 
         weak_hentry = nova_alloc_hentry(sb);
         weak_hentry->entrynr = alloc_entry;
@@ -383,11 +409,14 @@ int nova_dedup_non_fin(struct super_block *sb, const char* data_buffer, unsigned
     struct nova_pmm_entry *pentries, *pentry;
     entrynr_t alloc_entry;
     int allocated = 0;
-    
+    INIT_TIMING(time);
+
     alloc_entry = nova_alloc_entry(sb);
     allocated = nova_alloc_block_write(sb, data_buffer,blocknr);
     if(allocated < 0)
         goto out;
+    
+    NOVA_START_TIMING(upsert_entry_t, time);
     pentries = nova_get_block(sb, nova_get_block_off(sb, sbi->metadata_start,NOVA_BLOCK_TYPE_4K));
     pentry = pentries + alloc_entry;
     memset_nt(pentry, 0, sizeof(*pentry));
@@ -396,6 +425,7 @@ int nova_dedup_non_fin(struct super_block *sb, const char* data_buffer, unsigned
     pentry->refcount = 1;
     nova_flush_buffer(pentry, sizeof(*pentry), true);
     sbi->blocknr_to_entry[*blocknr] = alloc_entry;
+    NOVA_END_TIMING(upsert_entry_t, time);
 
 out:
     return allocated;
