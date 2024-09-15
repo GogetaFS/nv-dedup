@@ -168,7 +168,8 @@ const char *Timingstring[TIMING_NUM] = {
 	"real_block_write",
 	"non_fin_calc",
 	"ws_fin_calc",
-	"str_fin_calc"
+	"str_fin_calc",
+	"upsert_entry"
 };
 
 u64 Timingstats[TIMING_NUM];
