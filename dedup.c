@@ -1,3 +1,12 @@
+/*
+ * BRIEF DESCRIPTION
+ *
+ * Deduplication
+ * 
+ * Copyright 2024-2025 Harbin Institute of Technology, Shenzhen
+ * HIT System and Storage Lab, Yanqi Pan <wadepan.cs@foxmail.com>
+ */
+
 #include <linux/fs.h>
 #include "dedup.h"
 #include "nova.h"

@@ -2,7 +2,9 @@
  * BRIEF DESCRIPTION
  *
  * File operations for files.
- *
+ * 
+ * Copyright 2024-2025 Harbin Institute of Technology, Shenzhen
+ * HIT System and Storage Lab, Yanqi Pan <wadepan.cs@foxmail.com>
  * Copyright 2015-2016 Regents of the University of California,
  * UCSD Non-Volatile Systems Lab, Andiry Xu <jix024@cs.ucsd.edu>
  * Copyright 2012-2013 Intel Corporation
