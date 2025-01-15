@@ -440,6 +440,14 @@ out:
     return allocated;
 }
 
+/**
+ * @brief Deduplicate data blocks for NV-Dedup
+ * 
+ * @param sb NOVA super block
+ * @param data_buffer The data block (in kernel space) to be written
+ * @param blocknr the output block number allocated for the data block
+ * @return int number of blocks allocated
+ */
 int nova_dedup_new_write(struct super_block *sb,const char* data_buffer, unsigned long *blocknr)
 {
     struct nova_sb_info *sbi = NOVA_SB(sb);
